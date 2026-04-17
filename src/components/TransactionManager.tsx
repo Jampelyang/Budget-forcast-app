@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Plus, Search, Filter, ArrowUpCircle, ArrowDownCircle, Trash2, CalendarIcon } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Plus, Search, Filter, ArrowUpCircle, ArrowDownCircle, Trash2, CalendarIcon, Download, Upload, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
+import Papa from 'papaparse';
 import { 
   Card, 
   CardContent, 
@@ -35,17 +36,19 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Transaction, BudgetCategory } from '../types';
-import { CATEGORIES, CURRENCY_SYMBOL, formatCurrency } from '../constants';
+import { CURRENCY_SYMBOL, formatCurrency } from '../constants';
 
 interface TransactionManagerProps {
   transactions: Transaction[];
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
+  categories: BudgetCategory[];
   addAuditLog: (action: string, details: string) => void;
 }
 
-export function TransactionManager({ transactions, setTransactions, addAuditLog }: TransactionManagerProps) {
+export function TransactionManager({ transactions, setTransactions, categories, addAuditLog }: TransactionManagerProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
     date: format(new Date(), 'yyyy-MM-dd'),
     amount: 0,
@@ -54,8 +57,76 @@ export function TransactionManager({ transactions, setTransactions, addAuditLog 
 
   const filteredTransactions = transactions
     .filter(t => t.description.toLowerCase().includes(search.toLowerCase()) || 
-                 CATEGORIES.find(c => c.id === t.categoryId)?.name.toLowerCase().includes(search.toLowerCase()))
+                 categories.find(c => c.id === t.categoryId)?.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const handleExportCSV = () => {
+    const exportData = transactions.map(t => {
+      const category = categories.find(c => c.id === t.categoryId);
+      return {
+        Date: t.date,
+        Category: category?.name || 'Unknown',
+        Type: category?.type || 'Unknown',
+        Department: category?.department || 'Unknown',
+        Description: t.description,
+        Amount: t.amount,
+        User: t.user
+      };
+    });
+
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `transactions_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    addAuditLog('Export CSV', 'Exported transactions to CSV');
+  };
+
+  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const importedTransactions: Transaction[] = [];
+        let successCount = 0;
+        let failCount = 0;
+
+        results.data.forEach((row: any) => {
+          // Try to find category by name
+          const category = categories.find(c => c.name.toLowerCase() === (row.Category || '').toLowerCase());
+          
+          if (category && row.Date && row.Amount) {
+            importedTransactions.push({
+              id: Math.random().toString(36).substr(2, 9),
+              categoryId: category.id,
+              date: row.Date,
+              amount: Number(row.Amount),
+              description: row.Description || '',
+              user: row.User || 'jampel91@gmail.com'
+            });
+            successCount++;
+          } else {
+            failCount++;
+          }
+        });
+
+        if (importedTransactions.length > 0) {
+          setTransactions(prev => [...importedTransactions, ...prev]);
+          addAuditLog('Import CSV', `Imported ${successCount} transactions (${failCount} failed)`);
+        }
+        
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    });
+  };
 
   const handleAdd = () => {
     if (newTransaction.categoryId && newTransaction.amount) {
@@ -68,7 +139,7 @@ export function TransactionManager({ transactions, setTransactions, addAuditLog 
         user: 'jampel91@gmail.com'
       };
       setTransactions(prev => [transaction, ...prev]);
-      const cat = CATEGORIES.find(c => c.id === transaction.categoryId);
+      const cat = categories.find(c => c.id === transaction.categoryId);
       addAuditLog('New Transaction', `${cat?.type}: ${formatCurrency(transaction.amount)} for ${cat?.name}`);
       setIsAddOpen(false);
       setNewTransaction({ date: format(new Date(), 'yyyy-MM-dd'), amount: 0, description: '' });
@@ -93,13 +164,37 @@ export function TransactionManager({ transactions, setTransactions, addAuditLog 
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-[#141414] hover:bg-[#141414]/90 gap-2 w-full md:w-auto">
-              <Plus size={16} />
-              Add Transaction
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2 w-full md:w-auto">
+          <input 
+            type="file" 
+            accept=".csv" 
+            className="hidden" 
+            ref={fileInputRef}
+            onChange={handleImportCSV}
+          />
+          <Button 
+            variant="outline" 
+            className="border-[#141414]/10 gap-2 flex-1 md:flex-none"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload size={16} />
+            Import
+          </Button>
+          <Button 
+            variant="outline" 
+            className="border-[#141414]/10 gap-2 flex-1 md:flex-none"
+            onClick={handleExportCSV}
+          >
+            <Download size={16} />
+            Export
+          </Button>
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-[#141414] hover:bg-[#141414]/90 gap-2 flex-1 md:flex-none">
+                <Plus size={16} />
+                Add Transaction
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Record Transaction</DialogTitle>
@@ -112,7 +207,7 @@ export function TransactionManager({ transactions, setTransactions, addAuditLog 
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {CATEGORIES.map(cat => (
+                    {categories.map(cat => (
                       <SelectItem key={cat.id} value={cat.id}>
                         <div className="flex items-center gap-2">
                           {cat.type === 'Income' ? <ArrowUpCircle size={14} className="text-green-600" /> : <ArrowDownCircle size={14} className="text-red-600" />}
@@ -158,8 +253,9 @@ export function TransactionManager({ transactions, setTransactions, addAuditLog 
           </DialogContent>
         </Dialog>
       </div>
+    </div>
 
-      <Card className="border-[#141414]/10 shadow-sm overflow-hidden">
+    <Card className="border-[#141414]/10 shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-[#141414]/5">
             <TableRow>
@@ -179,7 +275,7 @@ export function TransactionManager({ transactions, setTransactions, addAuditLog 
               </TableRow>
             ) : (
               filteredTransactions.map((t) => {
-                const category = CATEGORIES.find(c => c.id === t.categoryId);
+                const category = categories.find(c => c.id === t.categoryId);
                 return (
                   <TableRow key={t.id} className="hover:bg-[#141414]/5 transition-colors">
                     <TableCell className="text-sm text-[#141414]/60">

@@ -24,22 +24,25 @@ import {
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths, isSameMonth, parseISO } from 'date-fns';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Allocation, Transaction } from '../types';
-import { CATEGORIES, DEPARTMENTS, CURRENCY_SYMBOL, formatCurrency } from '../constants';
+import { Allocation, Transaction, BudgetCategory, DepartmentInfo, CompanyProfile } from '../types';
+import { CURRENCY_SYMBOL, formatCurrency } from '../constants';
 
 interface DashboardOverviewProps {
   allocations: Allocation[];
   transactions: Transaction[];
+  categories: BudgetCategory[];
+  departments: DepartmentInfo[];
+  profile: CompanyProfile;
 }
 
-export function DashboardOverview({ allocations, transactions }: DashboardOverviewProps) {
+export function DashboardOverview({ allocations, transactions, categories, departments, profile }: DashboardOverviewProps) {
   const stats = useMemo(() => {
     const totalAllocated = allocations.reduce((sum, a) => sum + a.amount, 0);
     const totalSpent = transactions
-      .filter(t => CATEGORIES.find(c => c.id === t.categoryId)?.type === 'Expenditure')
+      .filter(t => categories.find(c => c.id === t.categoryId)?.type === 'Expenditure')
       .reduce((sum, t) => sum + t.amount, 0);
     const totalIncome = transactions
-      .filter(t => CATEGORIES.find(c => c.id === t.categoryId)?.type === 'Income')
+      .filter(t => categories.find(c => c.id === t.categoryId)?.type === 'Income')
       .reduce((sum, t) => sum + t.amount, 0);
     
     const variance = totalAllocated - totalSpent;
@@ -53,7 +56,7 @@ export function DashboardOverview({ allocations, transactions }: DashboardOvervi
       burnRate,
       efficiency: totalAllocated > 0 ? (totalSpent / totalAllocated) * 100 : 0
     };
-  }, [allocations, transactions]);
+  }, [allocations, transactions, categories, departments]);
 
   const chartData = useMemo(() => {
     const months = eachMonthOfInterval({
@@ -66,11 +69,11 @@ export function DashboardOverview({ allocations, transactions }: DashboardOvervi
       const monthTransactions = transactions.filter(t => isSameMonth(parseISO(t.date), month));
       
       const spent = monthTransactions
-        .filter(t => CATEGORIES.find(c => c.id === t.categoryId)?.type === 'Expenditure')
+        .filter(t => categories.find(c => c.id === t.categoryId)?.type === 'Expenditure')
         .reduce((sum, t) => sum + t.amount, 0);
       
       const income = monthTransactions
-        .filter(t => CATEGORIES.find(c => c.id === t.categoryId)?.type === 'Income')
+        .filter(t => categories.find(c => c.id === t.categoryId)?.type === 'Income')
         .reduce((sum, t) => sum + t.amount, 0);
 
       // Simple forecast: 5% growth on average
@@ -87,12 +90,22 @@ export function DashboardOverview({ allocations, transactions }: DashboardOvervi
 
   return (
     <div className="space-y-6">
+      <div className="bg-[#141414] text-white p-8 rounded-2xl shadow-xl relative overflow-hidden">
+        <div className="relative z-10">
+          <h2 className="text-3xl font-bold mb-2">Welcome back, {profile.name}</h2>
+          <p className="text-white/60 font-serif italic">Registration: {profile.registrationNumber} | {profile.email}</p>
+        </div>
+        <div className="absolute top-0 right-0 p-8 opacity-10">
+          <TrendingUp size={120} />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard 
           title="Total Budget" 
           value={stats.totalAllocated} 
           icon={<Wallet className="text-blue-600" />}
-          description="Total Q1 Allocation"
+          description="Total Annual Allocation"
         />
         <KpiCard 
           title="Total Spent" 
@@ -150,7 +163,7 @@ export function DashboardOverview({ allocations, transactions }: DashboardOvervi
                   axisLine={false} 
                   tickLine={false} 
                   tick={{ fontSize: 12, fill: '#14141460' }}
-                  tickFormatter={(value) => `${CURRENCY_SYMBOL}${value/1000}k`}
+                  tickFormatter={(value) => `${value/1000}k`}
                 />
                 <Tooltip 
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
@@ -185,22 +198,23 @@ export function DashboardOverview({ allocations, transactions }: DashboardOvervi
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {DEPARTMENTS.map(dept => {
+              {departments.map(deptInfo => {
+                const dept = deptInfo.name;
                 const deptSpent = transactions
                   .filter(t => {
-                    const cat = CATEGORIES.find(c => c.id === t.categoryId);
+                    const cat = categories.find(c => c.id === t.categoryId);
                     return cat?.department === dept && cat.type === 'Expenditure';
                   })
                   .reduce((sum, t) => sum + t.amount, 0);
                 
                 const deptAllocated = allocations
-                  .filter(a => CATEGORIES.find(c => c.id === a.categoryId)?.department === dept)
+                  .filter(a => categories.find(c => c.id === a.categoryId)?.department === dept)
                   .reduce((sum, a) => sum + a.amount, 0);
                 
                 const percentage = deptAllocated > 0 ? (deptSpent / deptAllocated) * 100 : 0;
 
                 return (
-                  <div key={dept} className="space-y-2">
+                  <div key={deptInfo.id} className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="font-medium">{dept}</span>
                       <span className="text-[#141414]/60">{formatCurrency(deptSpent)}</span>

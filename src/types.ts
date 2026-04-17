@@ -1,4 +1,9 @@
-export type Department = 'Operations' | 'Lending' | 'Risk' | 'IT' | 'HR' | 'Finance';
+export type Department = string;
+
+export interface DepartmentInfo {
+  id: string;
+  name: string;
+}
 
 export type CategoryType = 'Income' | 'Expenditure';
 
@@ -13,7 +18,6 @@ export interface Allocation {
   id: string;
   categoryId: string;
   year: number;
-  quarter: 1 | 2 | 3 | 4;
   amount: number;
 }
 
@@ -39,4 +43,13 @@ export interface ForecastData {
   actual: number;
   forecast: number;
   allocation: number;
+}
+
+export interface CompanyProfile {
+  name: string;
+  address: string;
+  email: string;
+  phone: string;
+  website: string;
+  registrationNumber: string;
 }

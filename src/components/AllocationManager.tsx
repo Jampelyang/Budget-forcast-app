@@ -33,19 +33,19 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Allocation, BudgetCategory } from '../types';
-import { CATEGORIES, DEPARTMENTS, CURRENCY_SYMBOL, formatCurrency } from '../constants';
+import { CURRENCY_SYMBOL, formatCurrency } from '../constants';
 
 interface AllocationManagerProps {
   allocations: Allocation[];
   setAllocations: React.Dispatch<React.SetStateAction<Allocation[]>>;
+  categories: BudgetCategory[];
   addAuditLog: (action: string, details: string) => void;
 }
 
-export function AllocationManager({ allocations, setAllocations, addAuditLog }: AllocationManagerProps) {
+export function AllocationManager({ allocations, setAllocations, categories, addAuditLog }: AllocationManagerProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newAllocation, setNewAllocation] = useState<Partial<Allocation>>({
     year: 2024,
-    quarter: 1,
     amount: 0
   });
 
@@ -55,20 +55,19 @@ export function AllocationManager({ allocations, setAllocations, addAuditLog }: 
         id: Math.random().toString(36).substr(2, 9),
         categoryId: newAllocation.categoryId,
         year: newAllocation.year || 2024,
-        quarter: (newAllocation.quarter as 1 | 2 | 3 | 4) || 1,
         amount: Number(newAllocation.amount)
       };
       setAllocations(prev => [...prev, allocation]);
-      addAuditLog('Create Allocation', `Added ${formatCurrency(allocation.amount)} for ${CATEGORIES.find(c => c.id === allocation.categoryId)?.name}`);
+      addAuditLog('Create Allocation', `Added ${formatCurrency(allocation.amount)} for ${categories.find(c => c.id === allocation.categoryId)?.name}`);
       setIsAddOpen(false);
-      setNewAllocation({ year: 2024, quarter: 1, amount: 0 });
+      setNewAllocation({ year: 2024, amount: 0 });
     }
   };
 
   const handleDelete = (id: string) => {
     const allocation = allocations.find(a => a.id === id);
     setAllocations(prev => prev.filter(a => a.id !== id));
-    addAuditLog('Delete Allocation', `Removed allocation for ${CATEGORIES.find(c => c.id === allocation?.categoryId)?.name}`);
+    addAuditLog('Delete Allocation', `Removed allocation for ${categories.find(c => c.id === allocation?.categoryId)?.name}`);
   };
 
   return (
@@ -98,13 +97,13 @@ export function AllocationManager({ allocations, setAllocations, addAuditLog }: 
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {CATEGORIES.map(cat => (
+                      {categories.map(cat => (
                         <SelectItem key={cat.id} value={cat.id}>{cat.name} ({cat.department})</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Year</label>
                     <Input 
@@ -112,20 +111,6 @@ export function AllocationManager({ allocations, setAllocations, addAuditLog }: 
                       value={newAllocation.year} 
                       onChange={(e) => setNewAllocation(prev => ({ ...prev, year: Number(e.target.value) }))}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Quarter</label>
-                    <Select onValueChange={(v) => setNewAllocation(prev => ({ ...prev, quarter: Number(v) as any }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Q1" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">Q1</SelectItem>
-                        <SelectItem value="2">Q2</SelectItem>
-                        <SelectItem value="3">Q3</SelectItem>
-                        <SelectItem value="4">Q4</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -152,7 +137,7 @@ export function AllocationManager({ allocations, setAllocations, addAuditLog }: 
                 <TableRow>
                   <TableHead className="font-bold">Category</TableHead>
                   <TableHead className="font-bold">Department</TableHead>
-                  <TableHead className="font-bold">Period</TableHead>
+                  <TableHead className="font-bold">Year</TableHead>
                   <TableHead className="font-bold text-right">Amount</TableHead>
                   <TableHead className="font-bold text-right">Actions</TableHead>
                 </TableRow>
@@ -166,7 +151,7 @@ export function AllocationManager({ allocations, setAllocations, addAuditLog }: 
                   </TableRow>
                 ) : (
                   allocations.map((allocation) => {
-                    const category = CATEGORIES.find(c => c.id === allocation.categoryId);
+                    const category = categories.find(c => c.id === allocation.categoryId);
                     return (
                       <TableRow key={allocation.id} className="hover:bg-[#141414]/5 transition-colors">
                         <TableCell className="font-medium">{category?.name}</TableCell>
@@ -175,7 +160,7 @@ export function AllocationManager({ allocations, setAllocations, addAuditLog }: 
                             {category?.department}
                           </span>
                         </TableCell>
-                        <TableCell>Q{allocation.quarter} {allocation.year}</TableCell>
+                        <TableCell>{allocation.year}</TableCell>
                         <TableCell className="text-right font-mono">{formatCurrency(allocation.amount)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
