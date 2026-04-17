@@ -1,4 +1,4 @@
-import { BudgetCategory, Department, Allocation, DepartmentInfo, CompanyProfile } from './types';
+import { BudgetCategory, Department, Allocation, DepartmentInfo, CompanyProfile, User, AppRole } from './types';
 
 export const INITIAL_DEPARTMENTS: DepartmentInfo[] = [
   { id: 'd1', name: 'Operations' },
@@ -46,5 +46,80 @@ export const INITIAL_COMPANY_PROFILE: CompanyProfile = {
   email: 'info@microfinance.com',
   phone: '+1 (555) 000-1234',
   website: 'www.microfinance.com',
-  registrationNumber: 'MF-2024-001'
+  registrationNumber: 'MF-2024-001',
+  logoUrl: 'https://picsum.photos/seed/microfinance/200/200'
 };
+
+export const INITIAL_USERS: User[] = [
+  {
+    id: 'u1',
+    name: 'Jampel',
+    email: 'jampel91@gmail.com',
+    password: 'password123',
+    role: 'Admin',
+    active: true,
+    createdAt: '2024-01-01T00:00:00Z'
+  },
+  {
+    id: 'u2',
+    name: 'Finance Manager',
+    email: 'manager@microfinance.com',
+    password: 'manager123',
+    role: 'Manager',
+    departmentId: 'd6',
+    active: true,
+    createdAt: '2024-01-10T00:00:00Z'
+  },
+  {
+    id: 'u3',
+    name: 'Operations Staff',
+    email: 'staff@microfinance.com',
+    password: 'staff123',
+    role: 'Staff',
+    departmentId: 'd1',
+    active: true,
+    createdAt: '2024-02-15T00:00:00Z'
+  }
+];
+
+export const INITIAL_ROLES: AppRole[] = [
+  { 
+    id: 'r1', 
+    name: 'Admin', 
+    permissions: [
+      'view_dashboard', 'view_departments', 'view_categories', 'view_allocations', 
+      'view_transactions', 'view_reports', 'view_users', 'view_audit_trail', 
+      'manage_settings', 'manage_users', 'manage_roles', 'all'
+    ],
+    description: 'Full system access and administration',
+    isSystem: true
+  },
+  { 
+    id: 'r2', 
+    name: 'Manager', 
+    permissions: ['view_dashboard', 'view_departments', 'view_categories', 'view_allocations', 'view_transactions', 'view_reports', 'export'],
+    description: 'Departmental oversight and reporting capabilities'
+  },
+  { 
+    id: 'r3', 
+    name: 'Staff', 
+    permissions: ['view_dashboard', 'view_transactions', 'view_categories'],
+    description: 'Standard data entry and operational access'
+  }
+];
+
+export const AVAILABLE_PERMISSIONS = [
+  'view_dashboard',
+  'view_departments',
+  'view_categories',
+  'view_allocations',
+  'view_transactions',
+  'view_reports',
+  'view_users',
+  'view_audit_trail',
+  'manage_settings',
+  'manage_users',
+  'manage_roles',
+  'export',
+  'all'
+];

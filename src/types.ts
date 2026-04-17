@@ -52,4 +52,26 @@ export interface CompanyProfile {
   phone: string;
   website: string;
   registrationNumber: string;
+  logoUrl?: string;
+}
+
+export type UserRoleName = string;
+
+export interface AppRole {
+  id: string;
+  name: UserRoleName;
+  permissions: string[];
+  description: string;
+  isSystem?: boolean; // System roles cannot be deleted
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  password?: string; // In a real app, this would be a hash
+  role: UserRoleName;
+  departmentId?: string;
+  active: boolean;
+  createdAt: string;
 }

@@ -18,7 +18,8 @@ import {
   FileText,
   Settings,
   Menu,
-  X
+  X,
+  Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, startOfQuarter, endOfQuarter, isWithinInterval, parseISO, subMonths } from 'date-fns';
@@ -49,7 +50,9 @@ import {
   INITIAL_ALLOCATIONS, 
   INITIAL_TRANSACTIONS,
   INITIAL_DEPARTMENTS,
-  INITIAL_COMPANY_PROFILE
+  INITIAL_COMPANY_PROFILE,
+  INITIAL_USERS,
+  INITIAL_ROLES
 } from './constants';
 import { 
   Allocation, 
@@ -60,7 +63,9 @@ import {
   ForecastData,
   BudgetCategory,
   DepartmentInfo,
-  CompanyProfile
+  CompanyProfile,
+  User,
+  AppRole
 } from './types';
 
 // Components
@@ -72,6 +77,9 @@ import { ReportsAnalysis } from './components/ReportsAnalysis';
 import { CategoryManager } from './components/CategoryManager';
 import { DepartmentManager } from './components/DepartmentManager';
 import { CompanySettings } from './components/CompanySettings';
+import { UserManager } from './components/UserManager';
+import { AuthView } from './components/AuthView';
+import { LogOut } from 'lucide-react';
 
 export default function App() {
   const [departments, setDepartments] = useState<DepartmentInfo[]>(INITIAL_DEPARTMENTS);
@@ -79,9 +87,12 @@ export default function App() {
   const [allocations, setAllocations] = useState<Allocation[]>(INITIAL_ALLOCATIONS);
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(INITIAL_COMPANY_PROFILE);
+  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  const [roles, setRoles] = useState<AppRole[]>(INITIAL_ROLES);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   // Add audit log helper
   const addAuditLog = (action: string, details: string) => {
@@ -90,7 +101,7 @@ export default function App() {
       timestamp: new Date().toISOString(),
       action,
       details,
-      user: 'jampel91@gmail.com',
+      user: currentUser?.email || 'System',
     };
     setAuditLogs(prev => [newLog, ...prev]);
   };
@@ -122,13 +133,43 @@ export default function App() {
     addAuditLog('Export', 'Exported transactions to CSV');
   };
 
+  const handleLogin = (user: User) => {
+    setCurrentUser(user);
+    addAuditLog('Auth', `User logged in: ${user.name}`);
+  };
+
+  const handleLogout = () => {
+    if (currentUser) {
+      addAuditLog('Auth', `User logged out: ${currentUser.name}`);
+      setCurrentUser(null);
+      setIsMobileMenuOpen(false);
+      setActiveTab('dashboard');
+    }
+  };
+
+  const hasPermission = (permission: string) => {
+    if (!currentUser) return false;
+    const userRole = roles.find(r => r.name === currentUser.role);
+    return userRole?.permissions.includes(permission) || userRole?.name === 'Admin';
+  };
+
+  if (!currentUser) {
+    return <AuthView users={users} onLogin={handleLogin} profile={companyProfile} />;
+  }
+
   return (
-    <div className="min-h-screen bg-[#F5F5F4] text-[#141414] font-sans">
+    <div className="min-h-screen bg-[#F5F5F4] text-[#141414] font-sans selection:bg-[#141414] selection:text-white">
       {/* Mobile/Tablet Top Header */}
       <header className="lg:hidden bg-white border-b border-[#141414]/10 h-16 sticky top-0 z-50 px-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-[#141414] rounded flex items-center justify-center">
-            <TrendingUp className="text-white w-5 h-5" />
+          <div className="w-8 h-8 rounded flex items-center justify-center overflow-hidden shrink-0">
+            {companyProfile.logoUrl ? (
+              <img src={companyProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="w-full h-full bg-[#141414] flex items-center justify-center">
+                <TrendingUp className="text-white w-5 h-5" />
+              </div>
+            )}
           </div>
           <h1 className="font-bold text-sm tracking-tight truncate max-w-[150px]">{companyProfile.name}</h1>
         </div>
@@ -152,15 +193,16 @@ export default function App() {
           >
             <nav className="p-4 space-y-1">
               {[
-                { id: 'dashboard', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
-                { id: 'departments', icon: <Building2 size={18} />, label: 'Departments' },
-                { id: 'categories', icon: <FileText size={18} />, label: 'Categories' },
-                { id: 'allocations', icon: <CalendarDays size={18} />, label: 'Allocations' },
-                { id: 'transactions', icon: <PlusCircle size={18} />, label: 'Transactions' },
-                { id: 'reports', icon: <PieChart size={18} />, label: 'Reports' },
-                { id: 'audit', icon: <History size={18} />, label: 'Audit Trail' },
-                { id: 'settings', icon: <Settings size={18} />, label: 'Settings' },
-              ].map((item) => (
+                { id: 'dashboard', icon: <LayoutDashboard size={18} />, label: 'Dashboard', permission: 'view_dashboard' },
+                { id: 'departments', icon: <Building2 size={18} />, label: 'Departments', permission: 'view_departments' },
+                { id: 'categories', icon: <FileText size={18} />, label: 'Categories', permission: 'view_categories' },
+                { id: 'allocations', icon: <CalendarDays size={18} />, label: 'Allocations', permission: 'view_allocations' },
+                { id: 'transactions', icon: <PlusCircle size={18} />, label: 'Transactions', permission: 'view_transactions' },
+                { id: 'reports', icon: <PieChart size={18} />, label: 'Reports', permission: 'view_reports' },
+                { id: 'users', icon: <Users size={18} />, label: 'Users', permission: 'view_users' },
+                { id: 'audit', icon: <History size={18} />, label: 'Audit Trail', permission: 'view_audit_trail' },
+                { id: 'settings', icon: <Settings size={18} />, label: 'Settings', permission: 'manage_settings' },
+              ].filter(item => hasPermission(item.permission)).map((item) => (
                 <button
                   key={item.id}
                   onClick={() => {
@@ -178,6 +220,14 @@ export default function App() {
                 </button>
               ))}
               <div className="pt-2 border-t border-[#141414]/5 mt-2">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start gap-2 border-transparent hover:bg-red-50 hover:text-red-600 transition-all h-12"
+                  onClick={handleLogout}
+                >
+                  <LogOut size={16} />
+                  Sign Out
+                </Button>
                 <Button 
                   variant="outline" 
                   className="w-full justify-start gap-2 border-transparent hover:bg-[#141414] hover:text-white transition-all h-12"
@@ -200,8 +250,14 @@ export default function App() {
         <aside className="w-64 bg-white border-r border-[#141414]/10 h-screen sticky top-0 hidden lg:flex flex-col">
           <div className="p-6 border-bottom border-[#141414]/10">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 bg-[#141414] rounded flex items-center justify-center">
-                <TrendingUp className="text-white w-5 h-5" />
+              <div className="w-8 h-8 rounded flex items-center justify-center overflow-hidden shrink-0">
+                {companyProfile.logoUrl ? (
+                  <img src={companyProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-full h-full bg-[#141414] flex items-center justify-center">
+                    <TrendingUp className="text-white w-5 h-5" />
+                  </div>
+                )}
               </div>
               <h1 className="font-bold text-lg tracking-tight truncate">{companyProfile.name}</h1>
             </div>
@@ -209,57 +265,89 @@ export default function App() {
           </div>
 
           <nav className="flex-1 p-4 space-y-2">
-            <NavButton 
-              active={activeTab === 'dashboard'} 
-              onClick={() => setActiveTab('dashboard')}
-              icon={<LayoutDashboard size={18} />}
-              label="Dashboard"
-            />
-            <NavButton 
-              active={activeTab === 'departments'} 
-              onClick={() => setActiveTab('departments')}
-              icon={<Building2 size={18} />}
-              label="Departments"
-            />
-            <NavButton 
-              active={activeTab === 'categories'} 
-              onClick={() => setActiveTab('categories')}
-              icon={<FileText size={18} />}
-              label="Categories"
-            />
-            <NavButton 
-              active={activeTab === 'allocations'} 
-              onClick={() => setActiveTab('allocations')}
-              icon={<CalendarDays size={18} />}
-              label="Allocations"
-            />
-            <NavButton 
-              active={activeTab === 'transactions'} 
-              onClick={() => setActiveTab('transactions')}
-              icon={<PlusCircle size={18} />}
-              label="Transactions"
-            />
-            <NavButton 
-              active={activeTab === 'reports'} 
-              onClick={() => setActiveTab('reports')}
-              icon={<PieChart size={18} />}
-              label="Reports"
-            />
-            <NavButton 
-              active={activeTab === 'audit'} 
-              onClick={() => setActiveTab('audit')}
-              icon={<History size={18} />}
-              label="Audit Trail"
-            />
-            <NavButton 
-              active={activeTab === 'settings'} 
-              onClick={() => setActiveTab('settings')}
-              icon={<Settings size={18} />}
-              label="Settings"
-            />
+            {hasPermission('view_dashboard') && (
+              <NavButton 
+                active={activeTab === 'dashboard'} 
+                onClick={() => setActiveTab('dashboard')}
+                icon={<LayoutDashboard size={18} />}
+                label="Dashboard"
+              />
+            )}
+            {hasPermission('view_departments') && (
+              <NavButton 
+                active={activeTab === 'departments'} 
+                onClick={() => setActiveTab('departments')}
+                icon={<Building2 size={18} />}
+                label="Departments"
+              />
+            )}
+            {hasPermission('view_categories') && (
+              <NavButton 
+                active={activeTab === 'categories'} 
+                onClick={() => setActiveTab('categories')}
+                icon={<FileText size={18} />}
+                label="Categories"
+              />
+            )}
+            {hasPermission('view_allocations') && (
+              <NavButton 
+                active={activeTab === 'allocations'} 
+                onClick={() => setActiveTab('allocations')}
+                icon={<CalendarDays size={18} />}
+                label="Allocations"
+              />
+            )}
+            {hasPermission('view_transactions') && (
+              <NavButton 
+                active={activeTab === 'transactions'} 
+                onClick={() => setActiveTab('transactions')}
+                icon={<PlusCircle size={18} />}
+                label="Transactions"
+              />
+            )}
+            {hasPermission('view_reports') && (
+              <NavButton 
+                active={activeTab === 'reports'} 
+                onClick={() => setActiveTab('reports')}
+                icon={<PieChart size={18} />}
+                label="Reports"
+              />
+            )}
+            {hasPermission('view_users') && (
+              <NavButton 
+                active={activeTab === 'users'} 
+                onClick={() => setActiveTab('users')}
+                icon={<Users size={18} />}
+                label="Users"
+              />
+            )}
+            {hasPermission('view_audit_trail') && (
+              <NavButton 
+                active={activeTab === 'audit'} 
+                onClick={() => setActiveTab('audit')}
+                icon={<History size={18} />}
+                label="Audit Trail"
+              />
+            )}
+            {hasPermission('manage_settings') && (
+              <NavButton 
+                active={activeTab === 'settings'} 
+                onClick={() => setActiveTab('settings')}
+                icon={<Settings size={18} />}
+                label="Settings"
+              />
+            )}
           </nav>
 
-          <div className="p-4 border-t border-[#141414]/10">
+          <div className="p-4 border-t border-[#141414]/10 space-y-2">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start gap-2 border-[#141414]/10 hover:bg-red-50 hover:text-red-600 transition-all"
+              onClick={handleLogout}
+            >
+              <LogOut size={16} />
+              Sign Out
+            </Button>
             <Button 
               variant="outline" 
               className="w-full justify-start gap-2 border-[#141414]/20 hover:bg-[#141414] hover:text-white transition-all"
@@ -344,6 +432,17 @@ export default function App() {
                   transactions={transactions} 
                   categories={categories}
                   departments={departments}
+                />
+              )}
+              {activeTab === 'users' && (
+                <UserManager 
+                  users={users}
+                  setUsers={setUsers}
+                  roles={roles}
+                  setRoles={setRoles}
+                  departments={departments}
+                  addAuditLog={addAuditLog}
+                  currentUser={currentUser}
                 />
               )}
               {activeTab === 'audit' && (
